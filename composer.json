@@ -1,0 +1,15 @@
+{
+  "name": "ytlmike/laravel-model-creator",
+  "description": "Create more maintainable eloquent models from cli, migrations and json files.",
+  "minimum-stability": "stable",
+  "license": "proprietary",
+  "authors": [
+    {
+      "name": "ytlmi",
+      "email": "ytlmike1@gmail.com"
+    }
+  ],
+  "require": {
+    "laravel/framework": "^5.0"
+  }
+}
