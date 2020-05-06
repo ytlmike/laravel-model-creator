@@ -1,9 +1,9 @@
 <?php
 
-namespace ytlmike\ModelCreator\Commands;
+namespace ModelCreator\Commands;
 
 use Illuminate\Console\Command;
-use ytlmike\ModelCreator\Util\ModelField;
+use ModelCreator\Util\ModelField;
 
 class CreateEloquentModel extends Command
 {

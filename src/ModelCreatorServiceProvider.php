@@ -1,9 +1,9 @@
 <?php
 
-namespace ytlmike\ModelCreator;
+namespace ModelCreator;
 
 use Illuminate\Support\ServiceProvider;
-use ytlmike\ModelCreator\Commands\CreateEloquentModel;
+use ModelCreator\Commands\CreateEloquentModel;
 
 class ModelCreatorServiceProvider extends ServiceProvider
 {

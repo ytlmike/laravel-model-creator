@@ -1,18 +1,12 @@
 <?php
 
-namespace ytlmike\ModelCreator\Util;
+namespace ModelCreator\Util;
 
 use Illuminate\Console\Command;
+use ModelCreator\Util\FieldTypes\BaseFieldType;
 
 class ModelField
 {
-//    const FIELD_TYPE_INTEGER = 'integer';
-//    const FIELD_TYPE_VARCHAR = 'varchar';
-//    const FIELD_TYPE_FLOAT = 'float';
-//    const FIELD_TYPE_TEXT = 'text';
-//    const FIELD_TYPE_DATE = 'date';
-//    const FIELD_TYPE_ = 'datetime';
-
     protected $command;
 
     protected $name;
@@ -29,7 +23,7 @@ class ModelField
 
     protected $isFirstField = false;
 
-    protected $fieldTypes = [];
+    protected $fieldType;
 
     public function __construct(Command $command, $isFirstField = false)
     {
@@ -52,19 +46,20 @@ class ModelField
 
     public function setType()
     {
-        $type = $this->command->choice('Field type:', $this->fieldTypes);
-        $this->type = $type;
+        $type = $this->command->choice('Field type:', array_keys($this->getFieldTypeMap()));
+        $typeMap = $this->getFieldTypeMap();
+        if (isset($typeMap[$type])) {
+            $this->type = $type;
+            $this->fieldType = $typeMap[$type];
+        }
         return $this;
     }
 
     public function setLength()
     {
-        $length = $this->command->ask('Field length:');
-        if (is_numeric($length) && $length > 0) {
-            $this->length = $length;
-        } else {
-            // TODO
-        }
+        $length = $this->command->ask('Field display length:');
+        $length = (is_numeric($length) && $length > 0) ? $length : $this->fieldType['default_length'];
+        $this->length = $length;
         return $this;
     }
 
@@ -77,9 +72,8 @@ class ModelField
     public function setDefaultValue()
     {
         $defaultValue = $this->command->ask('Default value of this field in tht database:');
-        if (!empty($defaultValue)) {
-            $this->defaultValue = $defaultValue;
-        }
+        $defaultValue = empty($defaultValue) ? $this->fieldType['default_value'] : $defaultValue;
+        $this->defaultValue = $defaultValue;
         return $this;
     }
 
@@ -90,5 +84,36 @@ class ModelField
             $this->comment = $comment;
         }
         return $this;
+    }
+
+    /**
+     * get all of the possible field types
+     *
+     * @return array[]
+     */
+    public function getFieldTypeMap()
+    {
+        return [
+            'int' => [
+                'main_type' => 'integer',
+                'default_length' => 11,
+                'default_value' => 0
+            ],
+            'tinyint' => [
+                'main_type' => 'integer',
+                'default_length' => 1,
+                'default_value' => 0
+            ],
+            'varchar' => [
+                'main_type' => 'string',
+                'default_length' => 255,
+                'default_value' => ''
+            ],
+            'datetime' => [
+                'main_type' => 'date/time',
+                'default_length' => 0,
+                'default_value' => '0001-01-01 00:00:00'
+            ],
+        ];
     }
 }
