@@ -34,8 +34,8 @@ class ModelField
     public function setName()
     {
         $question = $this->isFirstField
-            ? 'New field name (press <return> to stop adding fields):'
-            : 'Add another property? Enter the property name (or press <return> to stop adding fields):';
+            ? 'New field name (press <return> to stop adding fields)'
+            : 'Add another property? Enter the property name (or press <return> to stop adding fields)';
         $name = $this->command->ask($question);
         if (empty($name)) {
             return false;
@@ -57,7 +57,7 @@ class ModelField
 
     public function setLength()
     {
-        $length = $this->command->ask('Field display length:');
+        $length = $this->command->ask('Field display length', $this->fieldType['default_length']);
         $length = (is_numeric($length) && $length > 0) ? $length : $this->fieldType['default_length'];
         $this->length = $length;
         return $this;
@@ -65,13 +65,13 @@ class ModelField
 
     public function setNullable()
     {
-        $this->nullable =  $this->command->confirm('Can this field be null in the database (nullable):');
+        $this->nullable =  $this->command->confirm('Can this field be null in the database (nullable)');
         return $this;
     }
 
     public function setDefaultValue()
     {
-        $defaultValue = $this->command->ask('Default value of this field in tht database:');
+        $defaultValue = $this->command->ask('Default value of this field in tht database', $this->fieldType['default_value']);
         $defaultValue = empty($defaultValue) ? $this->fieldType['default_value'] : $defaultValue;
         $this->defaultValue = $defaultValue;
         return $this;
@@ -79,7 +79,7 @@ class ModelField
 
     public function setComment()
     {
-        $comment = $this->command->ask('Comment of this field in tht database:');
+        $comment = $this->command->ask('Comment of this field in the database', '');
         if (!empty($comment)) {
             $this->comment = $comment;
         }
