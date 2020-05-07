@@ -31,28 +31,13 @@ class CreateEloquentModel extends Command
     {
         $name = $this->argument('name');
         if (empty($name)) {
-            $name = $this->ask('Class name of the model to create');
+            $name = $this->ask('Class name of the model to create:');
         }
-        if (empty($name) || !$this->checkModelName($name)) {
+        if (empty($name)) {
             $this->askModelName();
         }
         $this->modelName = $name;
         return $this;
-    }
-
-    /**
-     * check if the model name is valid
-     *
-     * @param $name
-     * @return false|int
-     */
-    protected function checkModelName($name)
-    {
-        $match = preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $name);
-        if (!$match) {
-            $this->comment("invalid class name, please input a class name begin with a letter or underscore.\n");
-        }
-        return $match;
     }
 
     /**
@@ -62,9 +47,8 @@ class CreateEloquentModel extends Command
      */
     protected function askFields()
     {
-        $isFirst = true;
         while (true) {
-            $currentField = new ModelField($this, $isFirst);
+            $currentField = new ModelField($this);
             $available = $currentField->setName();
 
             if (!$available){
@@ -78,7 +62,6 @@ class CreateEloquentModel extends Command
                 ->setComment();
 
             $this->addField($currentField);
-            $isFirst = false;
         }
         return $this;
     }
