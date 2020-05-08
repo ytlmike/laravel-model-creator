@@ -48,8 +48,7 @@ class ClassSourceManipulator
 
     public function printCode()
     {
-        $code = (new PrettyPrinter())->printFormatPreserving($this->newStmts, $this->oldStmts, $this->oldTokens);
-        echo $code;
+        return (new PrettyPrinter())->printFormatPreserving($this->newStmts, $this->oldStmts, $this->oldTokens);
     }
 
     /**
