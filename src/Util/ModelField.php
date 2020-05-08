@@ -7,23 +7,23 @@ use ModelCreator\Util\FieldTypes\BaseFieldType;
 
 class ModelField
 {
-    protected $command;
+    private $command;
 
-    protected $name;
+    private $name;
 
-    protected $type;
+    private $type;
 
-    protected $length;
+    private $length;
 
-    protected $nullable = false;
+    private $nullable = false;
 
-    protected $defaultValue = null;
+    private $defaultValue = null;
 
-    protected $comment = '';
+    private $comment = '';
 
-    protected $isFirstField = false;
+    private $isFirstField = false;
 
-    protected $fieldType;
+    private $fieldType;
 
     public function __construct(Command $command, $isFirstField = false)
     {
@@ -91,7 +91,7 @@ class ModelField
      *
      * @return array[]
      */
-    public function getFieldTypeMap()
+    private function getFieldTypeMap()
     {
         return [
             'int' => [

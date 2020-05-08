@@ -11,9 +11,9 @@ class CreateEloquentModel extends Command
 
     protected $description = 'Create a eloquent model class with defining fields and get-set methods';
 
-    protected $modelName;
+    private $modelName;
 
-    protected $fields = [];
+    private $fields = [];
 
     public function handle()
     {
@@ -27,7 +27,7 @@ class CreateEloquentModel extends Command
      *
      * @return $this
      */
-    protected function askModelName()
+    private function askModelName()
     {
         $name = $this->argument('name');
         if (empty($name)) {
@@ -46,7 +46,7 @@ class CreateEloquentModel extends Command
      * @param $name
      * @return false|int
      */
-    protected function checkModelName($name)
+    private function checkModelName($name)
     {
         $match = preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $name);
         if (!$match) {
@@ -60,7 +60,7 @@ class CreateEloquentModel extends Command
      *
      * @return $this
      */
-    protected function askFields()
+    private function askFields()
     {
         $isFirst = true;
         while (true) {
@@ -86,12 +86,12 @@ class CreateEloquentModel extends Command
     /**
      * create the model class file
      */
-    protected function generate()
+    private function generate()
     {
         //TODO
     }
 
-    protected function addField(ModelField $field)
+    private function addField(ModelField $field)
     {
         $this->fields[] = $field;
         return $this;
