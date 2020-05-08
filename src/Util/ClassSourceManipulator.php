@@ -4,16 +4,21 @@
 namespace ModelCreator\Util;
 
 use ModelCreator\Exceptions\ModelCreatorException;
+use ModelCreator\Util\Node\Stmt\EmptyLine;
 use PhpParser\Builder\Property;
+use PhpParser\Lexer\Emulative;
 use PhpParser\Node;
-use PhpParser\ParserFactory;
-use PhpParser\PrettyPrinter\Standard;
+use PhpParser\NodeTraverser;
+use PhpParser\NodeVisitor\CloningVisitor;
+use PhpParser\Parser\Php7;
 
 class ClassSourceManipulator
 {
     private $fullClassName;
     private $parser;
-    private $ast;
+    private $oldTokens;
+    private $oldStmts;
+    private $newStmts;
 
     /**
      * ClassSourceManipulator constructor.
@@ -23,13 +28,27 @@ class ClassSourceManipulator
     public function __construct(string $fullClassName)
     {
         $this->fullClassName = $fullClassName;
-        $this->parser = (new ParserFactory())->create(ParserFactory::PREFER_PHP7);
-        $this->ast = $this->parser->parse($this->getSourceCode());
+        $lexer = new Emulative([
+            'usedAttributes' => [
+                'comments',
+                'startLine', 'endLine',
+                'startTokenPos', 'endTokenPos',
+            ],
+        ]);
+        $this->parser = new Php7($lexer);
+        $this->newStmts = $this->parser->parse($this->getSourceCode());
+
+        $traverser = new NodeTraverser();
+        $traverser->addVisitor(new CloningVisitor());
+
+        $this->oldTokens = $lexer->getTokens();
+        $this->oldStmts = $this->parser->parse($this->getSourceCode());
+        $this->newStmts = $traverser->traverse($this->oldStmts);
     }
 
-    public function print()
+    public function printCode()
     {
-        $code = (new Standard())->prettyPrint($this->ast[0]->stmts);
+        $code = (new PrettyPrinter())->printFormatPreserving($this->newStmts, $this->oldStmts, $this->oldTokens);
         echo $code;
     }
 
@@ -42,6 +61,9 @@ class ClassSourceManipulator
      */
     public function addProperty(string $propertyName, $defaultValue = null, $modifier = Node\Stmt\Class_::MODIFIER_PRIVATE, $comments = [])
     {
+        if (is_string($comments)) {
+            $comments = [$comments];
+        }
         if ($this->getPropertyNode($propertyName)) {
             return;
         }
@@ -58,6 +80,9 @@ class ClassSourceManipulator
                 break;
             default:
                 $propertyBuilder->makeProtected();
+        }
+        if (is_array($comments) && !empty($comments)) {
+            $propertyBuilder->setDocComment($this->createDocCommentStr($comments));
         }
         $this->appendProperty($propertyBuilder->getNode());
     }
@@ -78,7 +103,7 @@ class ClassSourceManipulator
      */
     private function getClassNode()
     {
-        $classNode = $this->getFirstChildNode($this->ast[0], function ($node) {
+        $classNode = $this->getFirstChildNode($this->newStmts[0], function ($node) {
             return $node instanceof Node\Stmt\Class_;
         });
         if (!$classNode) {
@@ -108,21 +133,29 @@ class ClassSourceManipulator
 
     private function appendProperty(Node $propertyNode)
     {
+        $needAppend = [(new EmptyLine()), $propertyNode];
         $classNode = $this->getClassNode();
-        $lastPropertyNode = $this->getLastChildNode($classNode, function ($node) {
+
+        // try to find last property node.
+        $targetNode = $this->getLastChildNode($classNode, function ($node) {
             return $node instanceof Node\Stmt\Property;
         });
-        if (!$lastPropertyNode) {
-            $lastPropertyNode = $this->getLastChildNode($classNode, function ($node) {
+
+        // if there is no properties, try to find a class const node.
+        if (!$targetNode) {
+            $targetNode = $this->getLastChildNode($classNode, function ($node) {
                 return $node instanceof Node\Stmt\ClassConst;
             });
         }
-        if (!$lastPropertyNode) {
+
+        // if there is neither properties nor class constants, insert at top of the class without a new line.
+        if (!$targetNode) {
             array_unshift($classNode->stmts, [$propertyNode]);
             return;
         }
-        $index = $this->getChileNodeIndex($classNode, $lastPropertyNode);
-        array_splice($classNode->stmts, $index + 1, 0, [$propertyNode]);
+
+        $index = $this->getChileNodeIndex($classNode, $targetNode);
+        array_splice($classNode->stmts, $index + 1, 0, $needAppend);
     }
 
     /**
@@ -177,5 +210,16 @@ class ClassSourceManipulator
     private function getChileNodeIndex(Node $parentNode, Node $childNode)
     {
         return array_search($childNode, $parentNode->stmts);
+    }
+
+    private function createDocCommentStr(array $comments)
+    {
+        $firstLine = "/**\n";
+        $lastLine = ' */';
+        $body = '';
+        foreach ($comments as $comment) {
+            $body .= " * $comment\n";
+        }
+        return $firstLine . $body . $lastLine;
     }
 }

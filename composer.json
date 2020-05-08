@@ -2,7 +2,7 @@
   "name": "ytlmike/laravel-model-creator",
   "description": "Create more maintainable eloquent models from cli, migrations and json files.",
   "minimum-stability": "stable",
-  "license": "proprietary",
+  "license": "MIT",
   "authors": [
     {
       "name": "ytlmi",
@@ -12,5 +12,10 @@
   "require": {
     "laravel/framework": "^5.0",
     "nikic/php-parser": "^4.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "ModelCreator\\": "src/"
+    }
   }
 }
