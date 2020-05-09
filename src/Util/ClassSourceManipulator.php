@@ -5,6 +5,7 @@ namespace ModelCreator\Util;
 
 use Illuminate\Support\Str;
 use ModelCreator\Exceptions\ModelCreatorException;
+use ModelCreator\Util\Builder\ClassConst;
 use ModelCreator\Util\Node\Stmt\EmptyLine;
 use PhpParser\Builder;
 use PhpParser\Builder\Method;
@@ -54,9 +55,19 @@ class ClassSourceManipulator
         return (new PrettyPrinter())->printFormatPreserving($this->newStmts, $this->oldStmts, $this->oldTokens);
     }
 
-    public function addClassConst($constName)
+    public function addClassConst($constName, $constValue, $comments = [])
     {
-        //TODO
+        if (is_string($comments)) {
+            $comments = [$comments];
+        }
+        if ($this->getClassConstNode($constName)) {
+            return;
+        }
+        $builder = new ClassConst($constName, $constValue);
+        if (is_array($comments) && !empty($comments)) {
+            $builder->setDocComment($this->createDocCommentStr($comments));
+        }
+        $this->appendNode($builder->getNode());
     }
 
     /**
@@ -91,15 +102,23 @@ class ClassSourceManipulator
      */
     public function addGetter($propertyName)
     {
-        $builder = $this->makeMethodBuilder('get' . Str::camel($propertyName));
+        $methodName = 'get' . ucfirst(Str::camel($propertyName));
+        if ($this->getClassMethodNode($methodName)) {
+            return;
+        }
+        $builder = $this->makeMethodBuilder($methodName);
         $propertyFetchExpr = new Node\Expr\PropertyFetch(new Node\Expr\Variable('this'), $propertyName);
         $builder->addStmt(new Node\Stmt\Return_($propertyFetchExpr));
         $this->appendNode($builder->getNode());
     }
 
-    public function getSetter($propertyName)
+    public function addSetter($propertyName)
     {
-        $builder = $this->makeMethodBuilder('set' . Str::camel($propertyName), $propertyName);
+        $methodName = 'set' . ucfirst(Str::camel($propertyName));
+        if ($this->getClassMethodNode($methodName)) {
+            return;
+        }
+        $builder = $this->makeMethodBuilder($methodName);
         $builder->addStmt(
             new Node\Stmt\Expression(new Node\Expr\Assign(
                 new Node\Expr\PropertyFetch(new Node\Expr\Variable('this'), $propertyName),
@@ -126,7 +145,9 @@ class ClassSourceManipulator
             $comments = [$params];
         }
         $builder = new Method($methodName);
-        $builder->setDocComment($this->createDocCommentStr($comments));
+        if (is_array($comments) && !empty($comments)) {
+            $builder->setDocComment($this->createDocCommentStr($comments));
+        }
         $this->setBuilderModifier($builder, $modifier);
         if (is_array($params)) {
             foreach ($params as $param) {
@@ -192,7 +213,8 @@ class ClassSourceManipulator
             $index = $this->getChileNodeIndex($classNode, $targetNode);
             array_splice($classNode->stmts, $index + 1, 0, [(new EmptyLine()), $newNode]);
         } else {
-            array_unshift($classNode->stmts, [$newNode]);
+            array_unshift($classNode->stmts, new EmptyLine());
+            array_unshift($classNode->stmts, $newNode);
         }
     }
 
