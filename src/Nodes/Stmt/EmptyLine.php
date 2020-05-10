@@ -1,7 +1,7 @@
 <?php
 
 
-namespace ModelCreator\Util\Node\Stmt;
+namespace ModelCreator\Nodes\Stmt;
 
 
 use PhpParser\Node\Stmt;

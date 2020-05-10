@@ -1,12 +1,13 @@
 <?php
 
 
-namespace ModelCreator\Util;
+namespace ModelCreator\Manipulators;
 
 use Illuminate\Support\Str;
 use ModelCreator\Exceptions\ModelCreatorException;
-use ModelCreator\Util\Builder\ClassConst;
-use ModelCreator\Util\Node\Stmt\EmptyLine;
+use ModelCreator\Builders\ClassConst;
+use ModelCreator\Nodes\Stmt\EmptyLine;
+use ModelCreator\Printers\PrettyPrinter;
 use PhpParser\Builder;
 use PhpParser\Builder\Method;
 use PhpParser\Builder\Property;
@@ -55,6 +56,11 @@ class ClassSourceManipulator
         return (new PrettyPrinter())->printFormatPreserving($this->newStmts, $this->oldStmts, $this->oldTokens);
     }
 
+    public function writeCode()
+    {
+        file_put_contents($this->getSourceFile(), $this->printCode());
+    }
+
     public function addClassConst($constName, $constValue, $comments = [])
     {
         if (is_string($comments)) {
@@ -68,6 +74,7 @@ class ClassSourceManipulator
             $builder->setDocComment($this->createDocCommentStr($comments));
         }
         $this->appendNode($builder->getNode());
+        return $this;
     }
 
     /**
@@ -75,6 +82,7 @@ class ClassSourceManipulator
      * @param null $defaultValue
      * @param int $modifier
      * @param array $comments
+     * @return $this
      * @throws ModelCreatorException
      */
     public function addProperty(string $propertyName, $defaultValue = null, $modifier = Node\Stmt\Class_::MODIFIER_PRIVATE, $comments = [])
@@ -94,6 +102,7 @@ class ClassSourceManipulator
             $propertyBuilder->setDocComment($this->createDocCommentStr($comments));
         }
         $this->appendNode($propertyBuilder->getNode());
+        return $this;
     }
 
     /**
@@ -102,47 +111,47 @@ class ClassSourceManipulator
      */
     public function addGetter($propertyName)
     {
-        $methodName = 'get' . ucfirst(Str::camel($propertyName));
-        if ($this->getClassMethodNode($methodName)) {
-            return;
-        }
-        $builder = $this->makeMethodBuilder($methodName);
+        $methodName = 'get' . Str::studly($propertyName);
         $propertyFetchExpr = new Node\Expr\PropertyFetch(new Node\Expr\Variable('this'), $propertyName);
-        $builder->addStmt(new Node\Stmt\Return_($propertyFetchExpr));
-        $this->appendNode($builder->getNode());
+        $stmts =new Node\Stmt\Return_($propertyFetchExpr);
+        return $this->addClassMethod($methodName, $propertyName, $stmts);
     }
 
     public function addSetter($propertyName)
     {
-        $methodName = 'set' . ucfirst(Str::camel($propertyName));
-        if ($this->getClassMethodNode($methodName)) {
-            return;
-        }
-        $builder = $this->makeMethodBuilder($methodName);
-        $builder->addStmt(
+        $methodName = 'set' . Str::studly($propertyName);
+        $stmts = [
             new Node\Stmt\Expression(new Node\Expr\Assign(
                 new Node\Expr\PropertyFetch(new Node\Expr\Variable('this'), $propertyName),
                 new Node\Expr\Variable($propertyName)
-            ))
-        );
-        $builder->addStmt(new Node\Stmt\Return_(new Node\Expr\Variable('this')));
-        $this->appendNode($builder->getNode());
+            )),
+            new Node\Stmt\Return_(new Node\Expr\Variable('this')),
+        ];
+        return $this->addClassMethod($methodName, $propertyName, $stmts);
     }
 
     /**
      * @param $methodName
-     * @param array $params
+     * @param array $params array of (string) params
+     * @param array $expressions  array of (PhpParser\Nodes\Stmt) expressions
      * @param int $modifier
      * @param array $comments
-     * @return Method
+     * @return self | false
+     * @throws ModelCreatorException
      */
-    public function makeMethodBuilder($methodName, $params = [], $modifier = Node\Stmt\Class_::MODIFIER_PUBLIC, $comments = [])
+    public function addClassMethod($methodName, $params = [], $expressions = [], $modifier = Node\Stmt\Class_::MODIFIER_PUBLIC, $comments = [])
     {
+        if ($this->getClassMethodNode($methodName)) {
+            return false;
+        }
         if (is_string($comments)) {
             $comments = [$comments];
         }
         if (is_string($params)) {
-            $comments = [$params];
+            $params = [$params];
+        }
+        if ($expressions instanceof Node\Stmt) {
+            $expressions = [$expressions];
         }
         $builder = new Method($methodName);
         if (is_array($comments) && !empty($comments)) {
@@ -154,7 +163,9 @@ class ClassSourceManipulator
                 $builder->addParam(new Builder\Param($param));
             }
         }
-        return $builder;
+        $builder->addStmts($expressions);
+        $this->appendNode($builder->getNode());
+        return $this;
     }
 
     /**
@@ -163,15 +174,19 @@ class ClassSourceManipulator
      */
     private function getSourceCode()
     {
-        $fileName = (new \ReflectionClass($this->fullClassName))->getFileName();
-        return file_get_contents($fileName);
+        return file_get_contents($this->getSourceFile());
+    }
+
+    private function getSourceFile()
+    {
+        return (new \ReflectionClass($this->fullClassName))->getFileName();
     }
 
     /**
      * @return bool|Node
      * @throws ModelCreatorException
      */
-    private function getClassNode()
+    protected function getClassNode()
     {
         $classNode = $this->getFirstChildNode($this->newStmts[0], function ($node) {
             return $node instanceof Node\Stmt\Class_;
@@ -186,7 +201,7 @@ class ClassSourceManipulator
      * @param Node $newNode
      * @throws ModelCreatorException
      */
-    private function appendNode(Node $newNode)
+    protected function appendNode(Node $newNode)
     {
         $classNode = $this->getClassNode();
         $targetNode = null;
@@ -211,14 +226,22 @@ class ClassSourceManipulator
 
         if ($targetNode) {
             $index = $this->getChileNodeIndex($classNode, $targetNode);
-            array_splice($classNode->stmts, $index + 1, 0, [(new EmptyLine()), $newNode]);
+            $preNode = $classNode->stmts[$index + 1];
+            if ($preNode instanceof EmptyLine) {
+                $insertNodes = [$newNode];
+                $index = $index + 2;
+            } else {
+                $insertNodes = [(new EmptyLine()), $newNode];
+                $index = $index + 1;
+            }
+            array_splice($classNode->stmts, $index, 0, $insertNodes);
         } else {
             array_unshift($classNode->stmts, new EmptyLine());
             array_unshift($classNode->stmts, $newNode);
         }
     }
 
-    private function getClassConstNode(string $constName)
+    protected function getClassConstNode(string $constName)
     {
         return $this->getFirstChildNode($this->getClassNode(), function ($node) use ($constName) {
             return $node instanceof Node\Stmt\ClassConst && $node->consts[0]->name->toString() == $constName;
@@ -230,14 +253,14 @@ class ClassSourceManipulator
      * @return bool|Node
      * @throws ModelCreatorException
      */
-    private function getPropertyNode(string $propertyName)
+    protected function getPropertyNode(string $propertyName)
     {
         return $this->getFirstChildNode($this->getClassNode(), function ($node) use ($propertyName) {
             return $node instanceof Node\Stmt\Property && $node->props[0]->name->toString() == $propertyName;
         });
     }
 
-    private function getClassMethodNode(string $methodName)
+    protected function getClassMethodNode(string $methodName)
     {
         return $this->getFirstChildNode($this->getClassNode(), function ($node) use ($methodName) {
             return $node instanceof Node\Stmt\ClassMethod && $node->name->toString() == $methodName;
@@ -249,7 +272,7 @@ class ClassSourceManipulator
      * @param callable $filter
      * @return Node | bool
      */
-    private function getFirstChildNode(Node $parentNode, callable $filter)
+    protected function getFirstChildNode(Node $parentNode, callable $filter)
     {
         foreach ($parentNode->stmts as $node) {
             if ($filter($node)) {
@@ -264,7 +287,7 @@ class ClassSourceManipulator
      * @param callable $filter
      * @return Node | false
      */
-    private function getLastChildNode(Node $parentNode, callable $filter)
+    protected function getLastChildNode(Node $parentNode, callable $filter)
     {
         $targetNode = false;
         foreach ($parentNode->stmts as $node) {
@@ -281,12 +304,12 @@ class ClassSourceManipulator
      * @param Node $childNode
      * @return false|int|string
      */
-    private function getChileNodeIndex(Node $parentNode, Node $childNode)
+    protected function getChileNodeIndex(Node $parentNode, Node $childNode)
     {
         return array_search($childNode, $parentNode->stmts);
     }
 
-    private function createDocCommentStr(array $comments)
+    protected function createDocCommentStr(array $comments)
     {
         $firstLine = "/**\n";
         $lastLine = ' */';
@@ -297,7 +320,7 @@ class ClassSourceManipulator
         return $firstLine . $body . $lastLine;
     }
 
-    private function setBuilderModifier(Builder $builder, $modifier)
+    protected function setBuilderModifier(Builder $builder, $modifier)
     {
         if ($builder instanceof Method || $builder instanceof Property) {
             switch ($modifier) {

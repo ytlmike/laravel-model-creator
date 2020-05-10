@@ -3,23 +3,28 @@
 namespace ModelCreator\Commands;
 
 use Illuminate\Console\Command;
-use ModelCreator\Util\ModelField;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Str;
+use ModelCreator\Manipulators\ClassSourceManipulator;
+use ModelCreator\Manipulators\ModelSourceManipulator;
+use ModelCreator\ModelField;
 
 class CreateEloquentModel extends Command
 {
-    protected $signature = 'create:model {name?}';
+    protected $signature = 'create:model {name?} {--const}';
 
-    protected $description = 'Create a eloquent model class with defining fields and get-set methods';
+    protected $description = 'Create a eloquent model class with defining fields and getter/setter methods';
 
     private $modelName;
 
     private $fields = [];
 
+    private $nameSpace = '\\App\\Models\\';
+
     public function handle()
     {
         $this->askModelName()
-            ->askFields()
-            ->generate();
+            ->askFields();
     }
 
     /**
@@ -34,9 +39,10 @@ class CreateEloquentModel extends Command
             $name = $this->ask('Class name of the model to create');
         }
         if (empty($name) || !$this->checkModelName($name)) {
-            $this->askModelName();
+            return $this->askModelName();
         }
-        $this->modelName = $name;
+        $this->modelName = Str::studly($name);
+        $this->generateClass();
         return $this;
     }
 
@@ -71,13 +77,18 @@ class CreateEloquentModel extends Command
                 break;
             }
 
-            $currentField->setType()
+            $currentField
+                ->setType()
                 ->setLength()
                 ->setNullable()
                 ->setDefaultValue()
                 ->setComment();
 
-            $this->addField($currentField);
+            if ($this->option('const')) {
+                $this->addFieldWithConst($currentField);
+            } else {
+                $this->addField($currentField);
+            }
             $isFirst = false;
         }
         return $this;
@@ -86,14 +97,34 @@ class CreateEloquentModel extends Command
     /**
      * create the model class file
      */
-    private function generate()
+    private function generateClass()
     {
-        //TODO
+        $classExists = class_exists($this->getModelFullClassName());
+        Artisan::call("make:model Models/{$this->modelName}");
+        $this->info($classExists ? "Class {$this->getModelFullClassName()} already exists." : "Class {$this->getModelFullClassName()} created successfully.");
+    }
+
+    private function getModelFullClassName()
+    {
+        return $this->nameSpace . $this->modelName;
     }
 
     private function addField(ModelField $field)
     {
         $this->fields[] = $field;
+        $manipulator = new ClassSourceManipulator($this->getModelFullClassName());
+        $manipulator->addGetter($field->getName())->addSetter($field->getName())->writeCode();
+        return $this;
+    }
+
+    private function addFieldWithConst(ModelField $field)
+    {
+        $this->fields[] = $field;
+        $manipulator = new ModelSourceManipulator($this->getModelFullClassName());
+        $manipulator
+            ->addFieldGetterWithConst($field)
+            ->addFieldSetterWithConst($field)
+            ->writeCode();
         return $this;
     }
 }

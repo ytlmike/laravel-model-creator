@@ -1,7 +1,7 @@
 <?php
 
 
-namespace ModelCreator\Util;
+namespace ModelCreator\Printers;
 
 
 use PhpParser\Node;

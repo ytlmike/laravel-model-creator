@@ -1,29 +1,28 @@
 <?php
 
-namespace ModelCreator\Util;
+namespace ModelCreator;
 
 use Illuminate\Console\Command;
-use ModelCreator\Util\FieldTypes\BaseFieldType;
 
 class ModelField
 {
-    private $command;
+    protected $command;
 
-    private $name;
+    protected $name;
 
-    private $type;
+    protected $type;
 
-    private $length;
+    protected $length;
 
-    private $nullable = false;
+    protected $nullable = false;
 
-    private $defaultValue = null;
+    protected $defaultValue = null;
 
-    private $comment = '';
+    protected $comment = '';
 
-    private $isFirstField = false;
+    protected $isFirstField = false;
 
-    private $fieldType;
+    protected $fieldType;
 
     public function __construct(Command $command, $isFirstField = false)
     {
@@ -44,6 +43,11 @@ class ModelField
         return $this;
     }
 
+    public function getName()
+    {
+        return $this->name;
+    }
+
     public function setType()
     {
         $type = $this->command->choice('Field type:', array_keys($this->getFieldTypeMap()));
@@ -55,6 +59,11 @@ class ModelField
         return $this;
     }
 
+    public function getType()
+    {
+        return $this->type;
+    }
+
     public function setLength()
     {
         $length = $this->command->ask('Field display length', $this->fieldType['default_length']);
@@ -63,10 +72,20 @@ class ModelField
         return $this;
     }
 
+    public function getLength()
+    {
+        return $this->length;
+    }
+
     public function setNullable()
     {
         $this->nullable =  $this->command->confirm('Can this field be null in the database (nullable)');
         return $this;
+    }
+
+    public function getNullable()
+    {
+        return $this->nullable;
     }
 
     public function setDefaultValue()
@@ -77,6 +96,11 @@ class ModelField
         return $this;
     }
 
+    public function getDefaultValue()
+    {
+        return $this->defaultValue;
+    }
+
     public function setComment()
     {
         $comment = $this->command->ask('Comment of this field in the database', '');
@@ -84,6 +108,11 @@ class ModelField
             $this->comment = $comment;
         }
         return $this;
+    }
+
+    public function getComment()
+    {
+        return $this->comment;
     }
 
     /**
