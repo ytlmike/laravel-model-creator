@@ -3,7 +3,7 @@
 namespace ModelCreator;
 
 use Illuminate\Support\ServiceProvider;
-use ModelCreator\Commands\CreateEloquentModel;
+use ModelCreator\Commands\CreateEloquentModelCommand;
 
 class ModelCreatorServiceProvider extends ServiceProvider
 {
@@ -12,6 +12,6 @@ class ModelCreatorServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->commands(CreateEloquentModel::class);
+        $this->commands(CreateEloquentModelCommand::class);
     }
 }
