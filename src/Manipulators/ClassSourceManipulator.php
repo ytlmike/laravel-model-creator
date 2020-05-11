@@ -180,7 +180,7 @@ class ClassSourceManipulator
         $methodName = 'get' . Str::studly($propertyName);
         $propertyFetchExpr = new Node\Expr\PropertyFetch(new Node\Expr\Variable('this'), $propertyName);
         $stmts =new Node\Stmt\Return_($propertyFetchExpr);
-        return $this->addClassMethod($methodName, $propertyName, $stmts);
+        return $this->addClassMethod($methodName, [], $stmts);
     }
 
     /**

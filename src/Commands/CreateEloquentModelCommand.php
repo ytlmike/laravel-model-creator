@@ -3,13 +3,14 @@
 namespace ModelCreator\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
 use ModelCreator\Manipulators\ClassSourceManipulator;
 use ModelCreator\Manipulators\ModelSourceManipulator;
 use ModelCreator\ModelField;
+use ModelCreator\Exceptions\ClassSourceManipulatorException;
+use ReflectionException;
 
-class CreateEloquentModel extends Command
+class CreateEloquentModelCommand extends Command
 {
     protected $signature = 'create:model {name?} {--const}';
 
@@ -21,16 +22,22 @@ class CreateEloquentModel extends Command
 
     private $nameSpace = '\\App\\Models\\';
 
+    /**
+     * @var ClassSourceManipulator $manipulator
+     */
+    private $manipulator;
+
     public function handle()
     {
-        $this->askModelName()
-            ->askFields();
+        $this->askModelName()->askFields();
     }
 
     /**
-     * ask the model name
+     * ask for the model name
      *
      * @return $this
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
      */
     private function askModelName()
     {
@@ -42,6 +49,7 @@ class CreateEloquentModel extends Command
             return $this->askModelName();
         }
         $this->modelName = Str::studly($name);
+        $this->manipulator = new ModelSourceManipulator($this->getModelFullClassName());
         $this->generateClass();
         return $this;
     }
@@ -54,7 +62,7 @@ class CreateEloquentModel extends Command
      */
     private function checkModelName($name)
     {
-        $match = preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', $name);
+        $match = preg_match('/^[a-zA-Z_\x80-\xff][a-zA-Z0-9_\x80-\xff]*$/', Str::studly($name));
         if (!$match) {
             $this->comment("invalid class name, please input a class name begin with a letter or underscore.\n");
         }
@@ -62,9 +70,9 @@ class CreateEloquentModel extends Command
     }
 
     /**
-     * ask fields data
-     *
      * @return $this
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
      */
     private function askFields()
     {
@@ -95,20 +103,30 @@ class CreateEloquentModel extends Command
     }
 
     /**
-     * create the model class file
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
      */
     private function generateClass()
     {
         $classExists = class_exists($this->getModelFullClassName());
-        Artisan::call("make:model Models/{$this->modelName}");
+        $this->manipulator->initClass()->writeCode();
         $this->info($classExists ? "Class {$this->getModelFullClassName()} already exists." : "Class {$this->getModelFullClassName()} created successfully.");
     }
 
+    /**
+     * @return string
+     */
     private function getModelFullClassName()
     {
         return $this->nameSpace . $this->modelName;
     }
 
+    /**
+     * @param ModelField $field
+     * @return $this
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
+     */
     private function addField(ModelField $field)
     {
         $this->fields[] = $field;
@@ -117,11 +135,18 @@ class CreateEloquentModel extends Command
         return $this;
     }
 
+    /**
+     * @param ModelField $field
+     * @return $this
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
+     */
     private function addFieldWithConst(ModelField $field)
     {
         $this->fields[] = $field;
         $manipulator = new ModelSourceManipulator($this->getModelFullClassName());
         $manipulator
+            ->addFieldConst($field)
             ->addFieldGetterWithConst($field)
             ->addFieldSetterWithConst($field)
             ->writeCode();
