@@ -17,5 +17,12 @@
     "psr-4": {
       "ModelCreator\\": "src/"
     }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "ModelCreator\\ModelCreatorServiceProvider"
+      ]
+    }
   }
 }
