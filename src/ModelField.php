@@ -115,6 +115,24 @@ class ModelField
         return $this->comment;
     }
 
+    public function makeFieldComment(ModelField $field)
+    {
+        $comments = [];
+        if (!empty($field->getComment())) {
+            $comments[] = $field->getComment();
+        }
+        $fieldAttrs = "type='{$field->getType()}'";
+        if (!empty($field->getLength())) {
+            $fieldAttrs .= ", length={$field->getLength()}";
+        }
+        if (!empty($field->getDefaultValue())) {
+            $fieldAttrs .= ", default='{$field->getDefaultValue()}'";
+        }
+        $fieldAttrs .= ', ' . ($field->getNullable() ? 'null' : 'not null');
+        $comments[] = "@Column ($fieldAttrs)";
+        return $comments;
+    }
+
     /**
      * get all of the possible field types
      *

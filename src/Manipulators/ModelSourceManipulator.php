@@ -1,35 +1,47 @@
 <?php
 
-
 namespace ModelCreator\Manipulators;
 
-
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use ModelCreator\ModelField;
 use PhpParser\Node;
+use ReflectionException;
 
 class ModelSourceManipulator extends ClassSourceManipulator
 {
     protected $fieldConstPrefix = 'FIELD_';
 
+    /**
+     * generate getter method of the field
+     *
+     * @param ModelField $field
+     * @return $this
+     * @throws ReflectionException
+     */
     public function addFieldGetterWithConst(ModelField $field)
     {
         $fieldName = $field->getName();
-        $constName = $this->makeFieldConstName($fieldName);
-        $this->addClassConst($constName, $fieldName, $this->makeFieldComment($field));
         $methodName = 'get' . Str::studly($fieldName);
+        $constName = $this->makeFieldConstName($fieldName);
         $constFetch = new Node\Expr\ConstFetch(new Node\Name("self::{$constName}"));
         $getAttribute = new Node\Expr\MethodCall(new Node\Expr\Variable('this'), 'getAttribute', [new Node\Arg($constFetch)]);
         $this->addClassMethod($methodName, [], new Node\Stmt\Return_($getAttribute));
         return $this;
     }
 
+    /**
+     * generate setter method of the field
+     *
+     * @param ModelField $field
+     * @return $this
+     * @throws ReflectionException
+     */
     public function addFieldSetterWithConst(ModelField $field)
     {
         $fieldName = $field->getName();
-        $constName = $this->makeFieldConstName($fieldName);
-        $this->addClassConst($constName, $fieldName, $this->makeFieldComment($field));
         $methodName = 'set' . Str::studly($fieldName);
+        $constName = $this->makeFieldConstName($fieldName);
         $constFetch = new Node\Expr\ConstFetch(new Node\Name("self::{$constName}"));
         $args = [new Node\Arg($constFetch), new Node\Arg(new Node\Expr\Variable($fieldName))];
         $expressions = [
@@ -40,26 +52,35 @@ class ModelSourceManipulator extends ClassSourceManipulator
         return $this;
     }
 
-    protected function makeFieldComment(ModelField $field)
+    /**
+     * generate class const (if not exists) of the field
+     *
+     * @param ModelField $field
+     * @return ModelSourceManipulator
+     * @throws ReflectionException
+     */
+    public function addFieldConst(ModelField $field)
     {
-        $comments = [];
-        if (!empty($field->getComment())) {
-            $comments[] = $field->getComment();
-        }
-        $fieldAttrs = "type='{$field->getType()}'";
-        if (!empty($field->getLength())) {
-            $fieldAttrs .= ", length={$field->getLength()}";
-        }
-        if (!empty($field->getDefaultValue())) {
-            $fieldAttrs .= ", default='{$field->getDefaultValue()}'";
-        }
-        $fieldAttrs .= ', ' . ($field->getNullable() ? 'null' : 'not null');
-        $comments[] = "@Column ($fieldAttrs)";
-        return $comments;
+        $fieldName = $field->getName();
+        $constName = $this->makeFieldConstName($fieldName);
+        return  $this->addClassConst($constName, $fieldName, $field->makeFieldComment($field));
     }
 
     protected function makeFieldConstName($fieldName)
     {
         return $this->fieldConstPrefix . strtoupper($fieldName);
+    }
+
+    protected function addClassNode()
+    {
+        parent::addClassNode();
+        $classNode = $this->getClassNode();
+        $classNode->extends = new Node\Name('Model');
+    }
+
+    protected function addNamespaceNode()
+    {
+        parent::addNamespaceNode();
+        $this->addUseNode(Model::class);
     }
 }

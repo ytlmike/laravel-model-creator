@@ -3,8 +3,10 @@
 
 namespace ModelCreator\Manipulators;
 
+use Composer\Autoload\ClassLoader;
+use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
-use ModelCreator\Exceptions\ModelCreatorException;
+use ModelCreator\Exceptions\ClassSourceManipulatorException;
 use ModelCreator\Builders\ClassConst;
 use ModelCreator\Nodes\Stmt\EmptyLine;
 use ModelCreator\Printers\PrettyPrinter;
@@ -16,6 +18,7 @@ use PhpParser\Node;
 use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor\CloningVisitor;
 use PhpParser\Parser\Php7;
+use ReflectionException;
 
 class ClassSourceManipulator
 {
@@ -27,8 +30,10 @@ class ClassSourceManipulator
 
     /**
      * ClassSourceManipulator constructor.
+     *
      * @param string $fullClassName
-     * @throws \ReflectionException
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
      */
     public function __construct(string $fullClassName)
     {
@@ -51,39 +56,97 @@ class ClassSourceManipulator
         $this->newStmts = $traverser->traverse($this->oldStmts);
     }
 
+    /**
+     * get new ast code string
+     * @return string
+     */
     public function printCode()
     {
         return (new PrettyPrinter())->printFormatPreserving($this->newStmts, $this->oldStmts, $this->oldTokens);
     }
 
+    /**
+     * check & complete the file path and write new code to class file
+     *
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
+     */
     public function writeCode()
     {
-        file_put_contents($this->getSourceFile(), $this->printCode());
+        $filename = $this->getSourceFileName();
+        if (!file_exists($filename)) {
+            $structure = explode(DIRECTORY_SEPARATOR, $filename);
+            array_pop($structure);
+            $dirname = implode(DIRECTORY_SEPARATOR, $structure);
+            if (!file_exists($dirname)) (new Filesystem())->makeDirectory($dirname, 0755, true);
+        }
+        file_put_contents($filename, $this->printCode());
     }
 
+    /**
+     * initial the class structure when the stmts is empty
+     *
+     * @return $this
+     * @throws ReflectionException
+     */
+    public function initClass()
+    {
+        $this->getClassNode();
+        return $this;
+    }
+
+    /**
+     * add class use node
+     *
+     * @param $use
+     * @throws ReflectionException
+     */
+    public function addUseNode($use)
+    {
+        $namespaceNode = $this->getNamespaceNode();
+        $targetNode = $this->getLastChildNode($namespaceNode, function ($node) {
+            return $node instanceof Node\Stmt\Use_;
+        });
+        $index = $targetNode ? $this->getChileNodeIndex($namespaceNode, $targetNode) : 0;
+        $builder = new Builder\Use_($use, Node\Stmt\Use_::TYPE_NORMAL);
+        $newNodes = $targetNode ? [$builder->getNode()] : [$builder->getNode(), new EmptyLine()];
+        array_splice($namespaceNode->stmts, $index, 0, $newNodes);
+    }
+
+    /**
+     * add class const node
+     *
+     * @param $constName
+     * @param $constValue
+     * @param string|string[] $comments
+     * @return $this
+     * @throws ReflectionException
+     */
     public function addClassConst($constName, $constValue, $comments = [])
     {
         if (is_string($comments)) {
             $comments = [$comments];
         }
         if ($this->getClassConstNode($constName)) {
-            return;
+            return $this;
         }
         $builder = new ClassConst($constName, $constValue);
         if (is_array($comments) && !empty($comments)) {
             $builder->setDocComment($this->createDocCommentStr($comments));
         }
-        $this->appendNode($builder->getNode());
+        $this->appendClassChildNode($builder->getNode());
         return $this;
     }
 
     /**
+     * add class property node
+     *
      * @param string $propertyName
      * @param null $defaultValue
      * @param int $modifier
-     * @param array $comments
+     * @param string|string[] $comments
      * @return $this
-     * @throws ModelCreatorException
+     * @throws ReflectionException
      */
     public function addProperty(string $propertyName, $defaultValue = null, $modifier = Node\Stmt\Class_::MODIFIER_PRIVATE, $comments = [])
     {
@@ -91,7 +154,7 @@ class ClassSourceManipulator
             $comments = [$comments];
         }
         if ($this->getPropertyNode($propertyName)) {
-            return;
+            return $this;
         }
         $propertyBuilder = new Property($propertyName);
         if ($defaultValue !== null) {
@@ -101,13 +164,16 @@ class ClassSourceManipulator
         if (is_array($comments) && !empty($comments)) {
             $propertyBuilder->setDocComment($this->createDocCommentStr($comments));
         }
-        $this->appendNode($propertyBuilder->getNode());
+        $this->appendClassChildNode($propertyBuilder->getNode());
         return $this;
     }
 
     /**
+     * add class property getter method node
+     *
      * @param $propertyName
-     * @throws ModelCreatorException
+     * @return $this|bool|false
+     * @throws ReflectionException
      */
     public function addGetter($propertyName)
     {
@@ -117,6 +183,13 @@ class ClassSourceManipulator
         return $this->addClassMethod($methodName, $propertyName, $stmts);
     }
 
+    /**
+     * add class property setter method node
+     *
+     * @param $propertyName
+     * @return $this|bool|false
+     * @throws ReflectionException
+     */
     public function addSetter($propertyName)
     {
         $methodName = 'set' . Str::studly($propertyName);
@@ -131,13 +204,15 @@ class ClassSourceManipulator
     }
 
     /**
+     * add class method node
+     *
      * @param $methodName
-     * @param array $params array of (string) params
-     * @param array $expressions  array of (PhpParser\Nodes\Stmt) expressions
+     * @param string|string[] $params
+     * @param Node\Stmt| Node\Stmt[] $expressions
      * @param int $modifier
-     * @param array $comments
-     * @return self | false
-     * @throws ModelCreatorException
+     * @param string|string[] $comments
+     * @return $this|bool|false
+     * @throws ReflectionException
      */
     public function addClassMethod($methodName, $params = [], $expressions = [], $modifier = Node\Stmt\Class_::MODIFIER_PUBLIC, $comments = [])
     {
@@ -164,44 +239,109 @@ class ClassSourceManipulator
             }
         }
         $builder->addStmts($expressions);
-        $this->appendNode($builder->getNode());
+        $this->appendClassChildNode($builder->getNode());
         return $this;
     }
 
     /**
-     * @return false|string
-     * @throws \ReflectionException
+     * get source code of current class
+     *
+     * @return false|string|void
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
      */
-    private function getSourceCode()
+    protected function getSourceCode()
     {
-        return file_get_contents($this->getSourceFile());
-    }
-
-    private function getSourceFile()
-    {
-        return (new \ReflectionClass($this->fullClassName))->getFileName();
+        $filename = $this->getSourceFileName();
+        return file_exists($filename) ? file_get_contents($filename) : '';
     }
 
     /**
-     * @return bool|Node
-     * @throws ModelCreatorException
+     * get file name of current class
+     *
+     * @return false|string|void
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
      */
-    protected function getClassNode()
+    protected function getSourceFileName()
     {
-        $classNode = $this->getFirstChildNode($this->newStmts[0], function ($node) {
-            return $node instanceof Node\Stmt\Class_;
-        });
-        if (!$classNode) {
-            throw new ModelCreatorException('can not find class node');
+        if (class_exists($this->fullClassName)) {
+            return (new \ReflectionClass($this->fullClassName))->getFileName();
+        } else {
+            return $this->resolveNotExistClassFileName();
         }
-        return $classNode;
     }
 
     /**
-     * @param Node $newNode
-     * @throws ModelCreatorException
+     * class auto loader cannot find the class file just created in this process, try to resolve with namespace prefix.
+     *
+     * @return string
+     * @throws ClassSourceManipulatorException
      */
-    protected function appendNode(Node $newNode)
+    protected function resolveNotExistClassFileName()
+    {
+        $fullClassName = ltrim($this->fullClassName, '\\');
+        $structure = explode('\\', $fullClassName);
+        $className = array_pop($structure);
+        if (count($structure) < 2) {
+            return base_path($fullClassName . '.php');
+        }
+        /** @var ClassLoader $classLoader */
+        $classLoader = require base_path('vendor/autoload.php');
+        $psr4Prefixes = $classLoader->getPrefixesPsr4();
+        $nameSpace = '';
+        while (!empty($structure)) {
+            $item = array_shift($structure);
+            $nameSpace = (empty($nameSpace) ? $item : $nameSpace . "\\$item") . '\\';
+            if (isset($psr4Prefixes[$nameSpace])) {
+                return $psr4Prefixes[$nameSpace][0] . DIRECTORY_SEPARATOR . implode(DIRECTORY_SEPARATOR, $structure) . DIRECTORY_SEPARATOR . $className . '.php';
+            }
+        }
+        throw new ClassSourceManipulatorException('cannot resolve the filename of class: ' . $this->fullClassName);
+    }
+
+    /**
+     * get namespace of current class
+     *
+     * @return string
+     * @throws ReflectionException
+     */
+    protected function getNamespace()
+    {
+        if (class_exists($this->fullClassName)) {
+            return (new \ReflectionClass($this->fullClassName))->getNamespaceName();
+        } else {
+            $fullClassName = ltrim($this->fullClassName, '\\');
+            $structure = explode('\\', $fullClassName);
+            array_pop($structure);
+            return implode('\\', $structure);
+        }
+    }
+
+    /**
+     * get the modifying class name
+     *
+     * @return mixed|string
+     * @throws ReflectionException
+     */
+    protected function getClassName()
+    {
+        if (class_exists($this->fullClassName)) {
+            return (new \ReflectionClass($this->fullClassName))->getName();
+        } else {
+            $fullClassName = ltrim($this->fullClassName, '\\');
+            $structure = explode('\\', $fullClassName);
+            return array_pop($structure);
+        }
+    }
+
+    /**
+     * add node to class node stmts (only [class const / class property / class method] nodes)
+     *
+     * @param Node $newNode
+     * @throws ReflectionException
+     */
+    protected function appendClassChildNode(Node $newNode)
     {
         $classNode = $this->getClassNode();
         $targetNode = null;
@@ -226,8 +366,8 @@ class ClassSourceManipulator
 
         if ($targetNode) {
             $index = $this->getChileNodeIndex($classNode, $targetNode);
-            $preNode = $classNode->stmts[$index + 1];
-            if ($preNode instanceof EmptyLine) {
+            $nextNode = $classNode->stmts[$index + 1] ?? null;
+            if ($nextNode && $nextNode instanceof EmptyLine) {
                 $insertNodes = [$newNode];
                 $index = $index + 2;
             } else {
@@ -241,6 +381,13 @@ class ClassSourceManipulator
         }
     }
 
+    /**
+     * search for the class const node with given name in class node stmts
+     *
+     * @param string $constName
+     * @return bool|Node
+     * @throws ReflectionException
+     */
     protected function getClassConstNode(string $constName)
     {
         return $this->getFirstChildNode($this->getClassNode(), function ($node) use ($constName) {
@@ -249,9 +396,11 @@ class ClassSourceManipulator
     }
 
     /**
+     * search for the class property node with given name in class node stmts
+     *
      * @param string $propertyName
      * @return bool|Node
-     * @throws ModelCreatorException
+     * @throws ReflectionException
      */
     protected function getPropertyNode(string $propertyName)
     {
@@ -260,11 +409,69 @@ class ClassSourceManipulator
         });
     }
 
+    /**
+     * search for the class method node with given name in class node stmts
+     *
+     * @param string $methodName
+     * @return bool|Node
+     * @throws ReflectionException
+     */
     protected function getClassMethodNode(string $methodName)
     {
         return $this->getFirstChildNode($this->getClassNode(), function ($node) use ($methodName) {
             return $node instanceof Node\Stmt\ClassMethod && $node->name->toString() == $methodName;
         });
+    }
+
+    /**
+     * @return bool|Node\Stmt\Class_
+     * @throws ReflectionException
+     */
+    protected function getClassNode()
+    {
+        $namespaceNode = $this->getNamespaceNode();
+        $classNode = $this->getFirstChildNode($namespaceNode, function ($node) {
+            return $node instanceof Node\Stmt\Class_;
+        });
+        if (!$classNode) {
+            $this->addClassNode();
+        }
+        return $classNode;
+    }
+
+    /**
+     * add a class node to the namespace node stmts.
+     *
+     * @throws ReflectionException
+     */
+    protected function addClassNode()
+    {
+        $namespaceNode = $this->getNamespaceNode();
+        $classNode = (new Builder\Class_($this->getClassName()))->getNode();
+        array_push($namespaceNode->stmts, $classNode);
+    }
+
+    /**
+     * get the namespace node of the stmts, generate if not exists.
+     *
+     * @return Node\Stmt\Namespace_
+     * @throws ReflectionException
+     */
+    protected function getNamespaceNode()
+    {
+        if (empty($this->newStmts)) {
+            $this->addNamespaceNode();
+        }
+        return $this->newStmts[0];
+    }
+
+    /**
+     * @throws ReflectionException
+     */
+    protected function addNamespaceNode()
+    {
+        $builder = new Builder\Namespace_($this->getNamespace());
+        array_unshift($this->newStmts, $builder->getNode());
     }
 
     /**
@@ -285,7 +492,7 @@ class ClassSourceManipulator
     /**
      * @param Node $parentNode
      * @param callable $filter
-     * @return Node | false
+     * @return Node|bool|false
      */
     protected function getLastChildNode(Node $parentNode, callable $filter)
     {
@@ -300,6 +507,7 @@ class ClassSourceManipulator
 
     /**
      * get the child node index in parent node
+     *
      * @param Node $parentNode
      * @param Node $childNode
      * @return false|int|string
@@ -309,6 +517,10 @@ class ClassSourceManipulator
         return array_search($childNode, $parentNode->stmts);
     }
 
+    /**
+     * @param string[] $comments
+     * @return string
+     */
     protected function createDocCommentStr(array $comments)
     {
         $firstLine = "/**\n";
@@ -320,8 +532,15 @@ class ClassSourceManipulator
         return $firstLine . $body . $lastLine;
     }
 
+    /**
+     * @param Builder $builder
+     * @param $modifier
+     */
     protected function setBuilderModifier(Builder $builder, $modifier)
     {
+        if (!method_exists($builder, 'makePublic')) {
+            return;
+        }
         if ($builder instanceof Method || $builder instanceof Property) {
             switch ($modifier) {
                 case Node\Stmt\Class_::MODIFIER_PRIVATE:
