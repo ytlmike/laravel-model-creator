@@ -1,8 +1,6 @@
 # laravel-model-creator
 
-Create more maintainable eloquent models from cli, migrations and json files.
-
-Use laravel-model-creator to generate a more maintainable model class automaticly.
+generate a more maintainable eloquent model class automaticly.
 
 ### start
 
