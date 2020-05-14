@@ -1,6 +1,6 @@
 # laravel-model-creator
 
-generate a more maintainable eloquent model class automaticly.
+generate a more maintainable eloquent model class automaticly (and create migration, factory, seeds, etc.).
 
 ### start
 
