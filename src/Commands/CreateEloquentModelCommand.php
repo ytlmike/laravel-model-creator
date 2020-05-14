@@ -12,7 +12,7 @@ use ReflectionException;
 
 class CreateEloquentModelCommand extends Command
 {
-    protected $signature = 'create:model {name?} {--const}';
+    protected $signature = 'create:model {name?} {--const} {--with-migration}';
 
     protected $description = 'Create a eloquent model class with defining fields and getter/setter methods';
 
