@@ -22,22 +22,25 @@ use ReflectionException;
 
 class ClassSourceManipulator
 {
-    private $fullClassName;
-    private $parser;
-    private $oldTokens;
-    private $oldStmts;
-    private $newStmts;
+    protected $fullClassName;
+    protected $fullFilename;
+    protected $parser;
+    protected $oldTokens;
+    protected $oldStmts;
+    protected $newStmts;
 
     /**
      * ClassSourceManipulator constructor.
      *
      * @param string $fullClassName
+     * @param string|null $fullFilename
      * @throws ClassSourceManipulatorException
      * @throws ReflectionException
      */
-    public function __construct(string $fullClassName)
+    public function __construct(string $fullClassName, $fullFilename = null)
     {
         $this->fullClassName = $fullClassName;
+        $this->fullFilename = $fullFilename;
         $lexer = new Emulative([
             'usedAttributes' => [
                 'comments',
@@ -265,6 +268,9 @@ class ClassSourceManipulator
      */
     protected function getSourceFileName()
     {
+        if ($this->fullFilename) {
+            return $this->fullFilename;
+        }
         if (class_exists($this->fullClassName)) {
             return (new \ReflectionClass($this->fullClassName))->getFileName();
         } else {
