@@ -1,7 +1,7 @@
 <?php
 
 
-namespace ModelCreator\Builders;
+namespace ModelCreator\NodeBuilders;
 
 
 use PhpParser\Builder;

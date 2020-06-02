@@ -7,7 +7,7 @@ use Composer\Autoload\ClassLoader;
 use Illuminate\Filesystem\Filesystem;
 use Illuminate\Support\Str;
 use ModelCreator\Exceptions\ClassSourceManipulatorException;
-use ModelCreator\Builders\ClassConst;
+use ModelCreator\NodeBuilders\ClassConst;
 use ModelCreator\Nodes\Stmt\EmptyLine;
 use ModelCreator\Printers\PrettyPrinter;
 use PhpParser\Builder;
