@@ -37,7 +37,7 @@ class ModelBuilder implements ClassBuilderInterface
         $options = $command->options();
         $this->useConst = $options[self::OPTION_NAME_USE_CONST] ?? false;
         $this->modelName = $modelName;
-        $this->manipulator = new ModelSourceManipulator($modelName);
+        $this->manipulator = new ModelSourceManipulator($this->getModelFullClassName());
     }
 
     /**

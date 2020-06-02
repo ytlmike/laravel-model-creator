@@ -31,7 +31,10 @@ class CreateEloquentModelCommand extends Command
     public function initBuilders()
     {
         $this->builders[] = new ModelBuilder($this->modelName, $this);
-        // TODO: 其他builder
+        // TODO: add other builders
+        foreach ($this->builders as $builder) {
+            $builder->init();
+        }
         return $this;
     }
 
@@ -52,9 +55,6 @@ class CreateEloquentModelCommand extends Command
             return $this->askModelName();
         }
         $this->modelName = Str::studly($name);
-        foreach ($this->builders as $builder) {
-            $builder->init();
-        }
         return $this;
     }
 
