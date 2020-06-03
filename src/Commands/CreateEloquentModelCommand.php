@@ -91,8 +91,10 @@ class CreateEloquentModelCommand extends Command
                 ->setDefaultValue()
                 ->setComment();
 
-            foreach ($this->builders as $builder) {
-                $builder->addField($currentField);
+            if ($this->builders[0]->fieldValid($currentField)) {
+                foreach ($this->builders as $builder) {
+                    $builder->addField($currentField);
+                }
             }
 
             $isFirst = false;

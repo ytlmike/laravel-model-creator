@@ -25,6 +25,11 @@ class ModelBuilder implements ClassBuilderInterface
     protected $nameSpace = '\\App\\Models\\';
 
     /**
+     * @var ModelField[]
+     */
+    protected $fields;
+
+    /**
      * ModelBuilder constructor.
      * @param Command $command
      * @param $modelName
@@ -41,19 +46,24 @@ class ModelBuilder implements ClassBuilderInterface
     }
 
     /**
-     * @throws ClassSourceManipulatorException
      * @throws ReflectionException
      */
     public function init()
     {
-        $classExists = class_exists($this->getModelFullClassName());
-        $this->manipulator->initClass()->writeCode();
-        $this->command->info($classExists ? "Class {$this->getModelFullClassName()} already exists." : "Class {$this->getModelFullClassName()} created successfully.");
+        if (class_exists($this->getModelFullClassName())) {
+            $this->command->info("Class {$this->getModelFullClassName()} already exists.");
+        }
+        $this->manipulator->initClass();
+    }
+
+    public function fieldValid(ModelField $field)
+    {
+        //TODO: check if the field is already exists.
+        return true;
     }
 
     /**
      * @param ModelField $field
-     * @throws ClassSourceManipulatorException
      * @throws ReflectionException
      */
     public function addField(ModelField $field)
@@ -68,7 +78,6 @@ class ModelBuilder implements ClassBuilderInterface
                 ->addGetter($field->getName())
                 ->addSetter($field->getName());
         }
-        $this->manipulator->writeCode();
     }
 
     /**
@@ -77,5 +86,15 @@ class ModelBuilder implements ClassBuilderInterface
     private function getModelFullClassName()
     {
         return $this->nameSpace . $this->modelName;
+    }
+
+    /**
+     * @throws ClassSourceManipulatorException
+     * @throws ReflectionException
+     */
+    public function __destruct()
+    {
+        $this->manipulator->writeCode();
+        $this->command->info("Class {$this->getModelFullClassName()} created successfully.");
     }
 }
