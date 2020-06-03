@@ -22,11 +22,10 @@ class ModelSourceManipulator extends ClassSourceManipulator
     public function addFieldGetterWithConst(ModelField $field)
     {
         $fieldName = $field->getName();
-        $methodName = 'get' . Str::studly($fieldName);
         $constName = $this->makeFieldConstName($fieldName);
         $constFetch = new Node\Expr\ConstFetch(new Node\Name("self::{$constName}"));
         $getAttribute = new Node\Expr\MethodCall(new Node\Expr\Variable('this'), 'getAttribute', [new Node\Arg($constFetch)]);
-        $this->addClassMethod($methodName, [], new Node\Stmt\Return_($getAttribute));
+        $this->addClassMethod($this->getFieldGetterMethodName($fieldName), [], new Node\Stmt\Return_($getAttribute)); // return $this->getAttribute(self::FIELD_XXX);
         return $this;
     }
 
@@ -40,15 +39,14 @@ class ModelSourceManipulator extends ClassSourceManipulator
     public function addFieldSetterWithConst(ModelField $field)
     {
         $fieldName = $field->getName();
-        $methodName = 'set' . Str::studly($fieldName);
         $constName = $this->makeFieldConstName($fieldName);
         $constFetch = new Node\Expr\ConstFetch(new Node\Name("self::{$constName}"));
         $args = [new Node\Arg($constFetch), new Node\Arg(new Node\Expr\Variable($fieldName))];
         $expressions = [
-            new Node\Expr\MethodCall(new Node\Expr\Variable('this'), 'setAttribute', $args),
-            new Node\Stmt\Return_(new Node\Expr\Variable('this'))
+            new Node\Expr\MethodCall(new Node\Expr\Variable('this'), 'setAttribute', $args),    // $this->setAttribute(self::FIELD_XXX, $xxx);
+            new Node\Stmt\Return_(new Node\Expr\Variable('this'))                                   // return $this;
         ];
-        $this->addClassMethod($methodName, $fieldName, $expressions);
+        $this->addClassMethod($this->getFieldSetterMethodName($fieldName), $fieldName, $expressions);
         return $this;
     }
 
@@ -64,6 +62,16 @@ class ModelSourceManipulator extends ClassSourceManipulator
         $fieldName = $field->getName();
         $constName = $this->makeFieldConstName($fieldName);
         return  $this->addClassConst($constName, $fieldName, $field->makeFieldComment($field));
+    }
+
+    /**
+     * @param $fieldName
+     * @return bool
+     * @throws ReflectionException
+     */
+    public function fieldExist($fieldName)
+    {
+        return $this->getClassMethodNode($this->getFieldGetterMethodName($fieldName)) instanceof Node\Stmt\ClassMethod;
     }
 
     protected function makeFieldConstName($fieldName)
@@ -82,5 +90,15 @@ class ModelSourceManipulator extends ClassSourceManipulator
     {
         parent::addNamespaceNode();
         $this->addUseNode(Model::class);
+    }
+
+    protected function getFieldGetterMethodName($fieldName)
+    {
+        return 'get' . Str::studly($fieldName);
+    }
+
+    protected function getFieldSetterMethodName($fieldName)
+    {
+        return 'set' . Str::studly($fieldName);
     }
 }

@@ -268,14 +268,12 @@ class ClassSourceManipulator
      */
     protected function getSourceFileName()
     {
-        if ($this->fullFilename) {
-            return $this->fullFilename;
+        if (!$this->fullFilename) {
+            $this->fullFilename = class_exists($this->fullClassName)
+                ? (new \ReflectionClass($this->fullClassName))->getFileName()
+                : $this->resolveNotExistClassFileName();
         }
-        if (class_exists($this->fullClassName)) {
-            return (new \ReflectionClass($this->fullClassName))->getFileName();
-        } else {
-            return $this->resolveNotExistClassFileName();
-        }
+        return $this->fullFilename;
     }
 
     /**

@@ -56,10 +56,14 @@ class ModelBuilder implements ClassBuilderInterface
         $this->manipulator->initClass();
     }
 
+    /**
+     * @param ModelField $field
+     * @return bool
+     * @throws ReflectionException
+     */
     public function fieldValid(ModelField $field)
     {
-        //TODO: check if the field is already exists.
-        return true;
+        return !$this->manipulator->fieldExist($field->getName());
     }
 
     /**
