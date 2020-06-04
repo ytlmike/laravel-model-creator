@@ -1,8 +1,6 @@
 <?php
 
-
 namespace ModelCreator\ClassBuilders;
-
 
 use Illuminate\Console\Command;
 use ModelCreator\Exceptions\ClassSourceManipulatorException;
@@ -63,7 +61,14 @@ class ModelBuilder implements ClassBuilderInterface
      */
     public function fieldValid(ModelField $field)
     {
-        return !$this->manipulator->fieldExist($field->getName());
+        $valid = true;
+        $exist = $this->manipulator->fieldExist($field->getName());
+        if (!$exist) {
+            $valid = false;
+            $this->command->info("Field {$field->getName()} already exists.");
+        }
+        // TODO: check if the filename is legal
+        return $valid;
     }
 
     /**

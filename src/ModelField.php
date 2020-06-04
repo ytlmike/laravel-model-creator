@@ -6,6 +6,12 @@ use Illuminate\Console\Command;
 
 class ModelField
 {
+    const INDEX_NONE = 'none';
+
+    const INDEX_NORMAL = 'normal';
+
+    const INDEX_UNIQUE = 'unique';
+
     protected $command;
 
     protected $name;
@@ -23,6 +29,8 @@ class ModelField
     protected $isFirstField = false;
 
     protected $fieldType;
+
+    protected $index;
 
     public function __construct(Command $command, $isFirstField = false)
     {
@@ -79,7 +87,7 @@ class ModelField
 
     public function setNullable()
     {
-        $this->nullable =  $this->command->confirm('Can this field be null in the database (nullable)');
+        $this->nullable = $this->command->confirm('Can this field be null in the database (nullable)');
         return $this;
     }
 
@@ -99,6 +107,20 @@ class ModelField
     public function getDefaultValue()
     {
         return $this->defaultValue;
+    }
+
+    public function setIndex()
+    {
+        $index = $this->command->choice('Create a index on this field?', [
+            self::INDEX_NONE, self::INDEX_NORMAL, self::INDEX_UNIQUE,
+        ]);
+        $this->index = $index;
+        return $this;
+    }
+
+    public function getIndex()
+    {
+        return $this->index;
     }
 
     public function setComment()
@@ -142,24 +164,24 @@ class ModelField
     {
         return [
             'int' => [
-                'main_type' => 'integer',
                 'default_length' => 11,
-                'default_value' => 0
+                'default_value' => 0,
+            ],
+            'bigint' => [
+                'default_length' => 20,
+                'default_value' => 0,
             ],
             'tinyint' => [
-                'main_type' => 'integer',
                 'default_length' => 1,
-                'default_value' => 0
+                'default_value' => 0,
             ],
             'varchar' => [
-                'main_type' => 'string',
                 'default_length' => 255,
-                'default_value' => ''
+                'default_value' => '',
             ],
             'datetime' => [
-                'main_type' => 'date/time',
                 'default_length' => 0,
-                'default_value' => '0001-01-01 00:00:00'
+                'default_value' => '0001-01-01 00:00:00',
             ],
         ];
     }

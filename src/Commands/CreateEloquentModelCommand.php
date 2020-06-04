@@ -6,8 +6,8 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Str;
 use ModelCreator\ClassBuilders\ClassBuilderInterface;
 use ModelCreator\ClassBuilders\ModelBuilder;
-use ModelCreator\ModelField;
 use ModelCreator\Exceptions\ClassSourceManipulatorException;
+use ModelCreator\ModelField;
 use ReflectionException;
 
 class CreateEloquentModelCommand extends Command
@@ -75,13 +75,19 @@ class CreateEloquentModelCommand extends Command
 
     private function askFields()
     {
+        /** @var ModelBuilder $modelBuilder */
+        $modelBuilder = $this->builders[0];
         $isFirst = true;
         while (true) {
             $currentField = new ModelField($this, $isFirst);
             $available = $currentField->setName();
 
-            if (!$available){
+            if (!$available) {
                 break;
+            }
+
+            if ($modelBuilder->fieldValid($currentField)) {
+                continue;
             }
 
             $currentField
@@ -89,14 +95,11 @@ class CreateEloquentModelCommand extends Command
                 ->setLength()
                 ->setNullable()
                 ->setDefaultValue()
+                ->setIndex()
                 ->setComment();
-
-            if ($this->builders[0]->fieldValid($currentField)) {
-                foreach ($this->builders as $builder) {
-                    $builder->addField($currentField);
-                }
+            foreach ($this->builders as $builder) {
+                $builder->addField($currentField);
             }
-
             $isFirst = false;
         }
         return $this;
