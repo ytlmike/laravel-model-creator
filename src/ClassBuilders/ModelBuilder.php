@@ -43,12 +43,17 @@ class ModelBuilder implements ClassBuilderInterface
         $this->manipulator = new ModelSourceManipulator($this->getModelFullClassName());
     }
 
+    public function modelExists()
+    {
+        return class_exists($this->getModelFullClassName());
+    }
+
     /**
      * @throws ReflectionException
      */
     public function init()
     {
-        if (class_exists($this->getModelFullClassName())) {
+        if ($this->modelExists()) {
             $this->command->info("Class {$this->getModelFullClassName()} already exists.");
         }
         $this->manipulator->initClass();

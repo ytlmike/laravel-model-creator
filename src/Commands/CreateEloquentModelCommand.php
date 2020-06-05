@@ -30,10 +30,15 @@ class CreateEloquentModelCommand extends Command
 
     public function initBuilders()
     {
-        $this->builders[] = new ModelBuilder($this->modelName, $this);
+        $modelBuilder = new ModelBuilder($this->modelName, $this);
+        $modelExists = $modelBuilder->modelExists();
+        $this->builders[] = $modelBuilder;
         // TODO: add other builders
         foreach ($this->builders as $builder) {
             $builder->init();
+        }
+        if (!$modelExists) {
+            $this->addPrimaryField();
         }
         return $this;
     }
@@ -103,5 +108,18 @@ class CreateEloquentModelCommand extends Command
             $isFirst = false;
         }
         return $this;
+    }
+
+    protected function addPrimaryField()
+    {
+        $idField = new ModelField($this, true);
+        $idField->name = 'id';
+        $idField->type = 'int';
+        $idField->defaultValue = null;
+        $idField->autoIncrement = true;
+        $idField->index = ModelField::INDEX_PRIMARY;
+        foreach ($this->builders as $builder) {
+            $builder->addField($idField);
+        }
     }
 }

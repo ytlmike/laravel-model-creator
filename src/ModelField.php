@@ -12,25 +12,29 @@ class ModelField
 
     const INDEX_UNIQUE = 'unique';
 
+    const INDEX_PRIMARY = 'primary';
+
     protected $command;
 
-    protected $name;
+    public $name;
 
-    protected $type;
+    public $type;
 
-    protected $length;
+    public $length;
 
-    protected $nullable = false;
+    public $nullable = false;
 
-    protected $defaultValue = null;
+    public $defaultValue = null;
 
-    protected $comment = '';
+    public $comment = '';
 
-    protected $isFirstField = false;
+    public $isFirstField = false;
 
-    protected $fieldType;
+    public $fieldType;
 
-    protected $index;
+    public $index;
+
+    public $autoIncrement;
 
     public function __construct(Command $command, $isFirstField = false)
     {
