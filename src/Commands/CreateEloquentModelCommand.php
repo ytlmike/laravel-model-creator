@@ -2,12 +2,14 @@
 
 namespace ModelCreator\Commands;
 
+use ModelCreator\ClassBuilders\ClassBuilderInterface;
+use ModelCreator\ClassBuilders\MigrationBuilder;
+use ModelCreator\ClassBuilders\ModelBuilder;
+use ModelCreator\Exceptions\ClassSourceManipulatorException;
+use ModelCreator\Field\FieldType;
+use ModelCreator\Field\ModelField;
 use Illuminate\Console\Command;
 use Illuminate\Support\Str;
-use ModelCreator\ClassBuilders\ClassBuilderInterface;
-use ModelCreator\ClassBuilders\ModelBuilder;
-use ModelCreator\ModelField;
-use ModelCreator\Exceptions\ClassSourceManipulatorException;
 use ReflectionException;
 
 class CreateEloquentModelCommand extends Command
@@ -16,36 +18,34 @@ class CreateEloquentModelCommand extends Command
 
     protected $description = 'Create a eloquent model class with defining fields and getter/setter methods';
 
-    protected $modelName;
-
     /**
      * @var ClassBuilderInterface[]
      */
     protected $builders;
 
+    protected $arr;
+
+    protected $test;
+
+    /**
+     * @throws ReflectionException
+     * @throws ClassSourceManipulatorException
+     */
     public function handle()
     {
-        $this->askModelName()->initBuilders()->askFields();
-    }
-
-    public function initBuilders()
-    {
-        $this->builders[] = new ModelBuilder($this->modelName, $this);
-        // TODO: add other builders
-        foreach ($this->builders as $builder) {
-            $builder->init();
-        }
-        return $this;
+        $this->builders = [
+            new ModelBuilder($this),
+            new MigrationBuilder($this)
+        ];
+        $this->askModelName()->askFields();
     }
 
     /**
      * ask for the model name
-     *
-     * @return $this
      * @throws ClassSourceManipulatorException
      * @throws ReflectionException
      */
-    private function askModelName()
+    private function askModelName(): CreateEloquentModelCommand
     {
         $name = $this->argument('name');
         if (empty($name)) {
@@ -54,7 +54,9 @@ class CreateEloquentModelCommand extends Command
         if (empty($name) || !$this->checkModelName($name)) {
             return $this->askModelName();
         }
-        $this->modelName = Str::studly($name);
+        foreach ($this->builders as $builder) {
+            $builder->setTableName($name);
+        }
         return $this;
     }
 
@@ -73,32 +75,35 @@ class CreateEloquentModelCommand extends Command
         return $match;
     }
 
-    private function askFields()
+    private function askFields(): void
     {
+        $id = new ModelField($this);
+        $id->setName('id');
+        $id->setType('int');
+        $id->setNullable(false);
+        $id->setLength(11);
+        $id->setPrimaryKey();
+
         $isFirst = true;
         while (true) {
             $currentField = new ModelField($this, $isFirst);
-            $available = $currentField->setName();
-
-            if (!$available){
+            if (!$currentField->askName()) {
                 break;
             }
+            $currentField->askType();
+            $currentField->askLength();
+            $currentField->askNullable();
+            $currentField->askDefaultValue();
+            $currentField->askIndex();
+            $currentField->askComment();
 
-            $currentField
-                ->setType()
-                ->setLength()
-                ->setNullable()
-                ->setDefaultValue()
-                ->setComment();
-
-            if ($this->builders[0]->fieldValid($currentField)) {
-                foreach ($this->builders as $builder) {
+            foreach ($this->builders as $builder) {
+                if (!$builder->existsField($currentField)) { //TODO
                     $builder->addField($currentField);
                 }
             }
 
             $isFirst = false;
         }
-        return $this;
     }
 }

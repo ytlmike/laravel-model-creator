@@ -1,14 +1,14 @@
 <?php
 
-
 namespace ModelCreator\ClassBuilders;
 
-
-use ModelCreator\ModelField;
+use ModelCreator\Field\ModelField;
 
 interface ClassBuilderInterface
 {
-    public function init();
+    public function setTableName(string $name): void;
 
-    public function addField(ModelField $field);
+    public function existsField(ModelField $field): bool;
+
+    public function addField(ModelField $field): void;
 }

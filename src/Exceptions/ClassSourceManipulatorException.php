@@ -3,8 +3,9 @@
 
 namespace ModelCreator\Exceptions;
 
+use Exception;
 
-class ClassSourceManipulatorException extends \Exception
+class ClassSourceManipulatorException extends Exception
 {
 
 }

@@ -10,6 +10,7 @@
     }
   ],
   "require": {
+    "php": ">=7.1",
     "laravel/framework": ">5.0",
     "nikic/php-parser": "^4.4"
   },
