@@ -26,6 +26,8 @@ class ClassBuilder
 
     protected $implements = [];
 
+    protected $comments = [];
+
     protected $filename;
 
     protected $ast;
@@ -33,7 +35,7 @@ class ClassBuilder
     /** @var Stmt\Class_ */
     protected $classStmt;
 
-    public function __construct(string $namespace, array $uses, string $classname, string $filename, $extend = '', $implements = [])
+    public function __construct(string $namespace, array $uses, string $classname, string $filename, $extend = '', $implements = [], $comments = [])
     {
         $this->namespace = $namespace;
         $this->uses = $uses;
@@ -41,6 +43,7 @@ class ClassBuilder
         $this->filename = $filename;
         $this->extend = $extend;
         $this->implements = $implements;
+        $this->comments = $comments;
         $this->initStmt();
     }
 
@@ -212,6 +215,9 @@ class ClassBuilder
                     $class->implement($implement);
                 }
             }
+        }
+        if (!empty($this->comments)) {
+            $class->setDocComment($this->buildDocCommentStr($this->comments));
         }
 
         if (file_exists($this->filename)) {

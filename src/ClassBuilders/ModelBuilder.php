@@ -7,6 +7,7 @@ use ModelCreator\Field\ModelField;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use PhpParser\BuilderFactory;
 use PhpParser\Node\Arg;
 use PhpParser\Node\Expr\ConstFetch;
 use PhpParser\Node\Expr\MethodCall;
@@ -16,10 +17,11 @@ use PhpParser\Node\Stmt\Return_;
 
 class ModelBuilder implements ClassBuilderInterface
 {
-    /**
-     * @var ClassBuilder
-     */
+    /** @var ClassBuilder */
     protected $builder;
+
+    /** @var BuilderFactory */
+    protected $fac;
 
     const OPTION_NAME_USE_CONST = 'const';
 
@@ -45,6 +47,7 @@ class ModelBuilder implements ClassBuilderInterface
         $options = $command->options();
         $this->useConst = $options[self::OPTION_NAME_USE_CONST] ?? false;
         $this->basePath = base_path('app/Models');
+        $this->fac = new BuilderFactory();
     }
 
     public function setTableName(string $name): void
@@ -54,7 +57,6 @@ class ModelBuilder implements ClassBuilderInterface
         if (file_exists($filename)) {
             $this->command->info(sprintf('Class file %s already exists.', $filename));
         }
-        $this->builder = new ClassBuilder($this->nameSpace, [Model::class], $this->className, $filename, "Model");
     }
 
     public function existsField(ModelField $field): bool
@@ -65,14 +67,29 @@ class ModelBuilder implements ClassBuilderInterface
 
     public function addField(ModelField $field): void
     {
-        if ($this->useConst) {
-            $this->addFieldConst($field);
-            $this->addFieldGetterWithConst($field);
-            $this->addFieldSetterWithConst($field);
-        } else {
-            $this->builder->addGetter($field->getName());
-            $this->builder->addSetter($field->getName());
-        }
+        $this->fields[] = $field;
+    }
+
+    /**
+     * generate getter method of the field
+     */
+    public function addFieldGetter(ModelField $field)
+    {
+        $fieldName = $field->getName();
+        $methodName = 'get' . Str::studly($fieldName);
+        $getAttribute = new MethodCall(new Variable('this'), 'getAttribute', $this->fac->args([$fieldName]));
+        $this->builder->addMethod($methodName, [], [new Return_($getAttribute)]);
+    }
+
+    /**
+     * generate setter method of the field
+     */
+    public function addFieldSetter(ModelField $field)
+    {
+        $fieldName = $field->getName();
+        $methodName = 'set' . Str::studly($fieldName);
+        $expressions = [new MethodCall(new Variable('this'), 'setAttribute', $this->fac->args([$fieldName, $this->fac->var($fieldName)]))];
+        $this->builder->addMethod($methodName, [$fieldName], $expressions);
     }
 
     /**
@@ -83,7 +100,7 @@ class ModelBuilder implements ClassBuilderInterface
         $fieldName = $field->getName();
         $methodName = 'get' . Str::studly($fieldName);
         $constName = $this->makeFieldConstName($fieldName);
-        $constFetch = new ConstFetch(new Name(sprintf('self::%s',$constName)));
+        $constFetch = new ConstFetch(new Name(sprintf('self::%s', $constName)));
         $getAttribute = new MethodCall(new Variable('this'), 'getAttribute', [new Arg($constFetch)]);
         $this->builder->addMethod($methodName, [], [new Return_($getAttribute)]);
     }
@@ -96,7 +113,7 @@ class ModelBuilder implements ClassBuilderInterface
         $fieldName = $field->getName();
         $methodName = 'set' . Str::studly($fieldName);
         $constName = $this->makeFieldConstName($fieldName);
-        $constFetch = new ConstFetch(new Name(sprintf('self::%s',$constName)));
+        $constFetch = new ConstFetch(new Name(sprintf('self::%s', $constName)));
         $args = [new Arg($constFetch), new Arg(new Variable($fieldName))];
         $expressions = [
             new MethodCall(new Variable('this'), 'setAttribute', $args),
@@ -123,9 +140,18 @@ class ModelBuilder implements ClassBuilderInterface
 
     public function __destruct()
     {
-        if ($this->builder) {
-            $this->builder->save();
-            $this->command->info(sprintf("Model file %s created successfully.", $this->getFilename()));
+        $this->builder = new ClassBuilder($this->nameSpace, [Model::class], $this->className, $this->getFilename(), "Model", []);
+        foreach ($this->fields as $field) {
+            if ($this->useConst) {
+                $this->addFieldConst($field);
+                $this->addFieldGetterWithConst($field);
+                $this->addFieldSetterWithConst($field);
+            } else {
+                $this->addFieldGetter($field);
+                $this->addFieldSetter($field);
+            }
         }
+        $this->builder->save();
+        $this->command->info(sprintf("Model file %s created successfully.", $this->getFilename()));
     }
 }
