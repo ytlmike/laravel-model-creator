@@ -125,6 +125,7 @@ class ModelBuilder implements ClassBuilderInterface
     {
         if ($this->builder) {
             $this->builder->save();
+            $this->command->info(sprintf("Model file %s created successfully.", $this->getFilename()));
         }
     }
 }
